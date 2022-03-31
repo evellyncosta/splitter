@@ -14,16 +14,35 @@ const dir = "tmp/"
 const maximumFileSize = 47185920
 const fileExtension = ".pdf"
 
-func SplitPDF(fileName string) error {
+type Splitter interface {
+	NewSplit(fileName string) error
+}
+
+type Split struct {
+	Parts    []*Part
+	FileName string
+}
+
+type Part struct {
+	Name       string
+	ParentName string
+	PartNumber int
+	TotalPages int
+	LastPage   int
+	Pages      []string
+}
+
+func (s *Split) NewSplit() error {
 	os.Chdir(dir)
-	file, err := os.Open(fileName)
+	file, err := os.Open(s.FileName)
+	defer file.Close()
 
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
 
-	err = pdfcpu.Split(file, "", fileName, 1, nil)
+	err = pdfcpu.Split(file, "", s.FileName, 1, nil)
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -43,20 +62,21 @@ func SplitPDF(fileName string) error {
 	currentPage := 1
 
 	for i := 1; i < totalPages; i++ {
-		partsNames, lastPage, err := extractPartsNames(currentPage, totalPages, fileName, i)
-		if err != nil {
-			fmt.Println(err)
-			return err
-		}
-		mergePages(partsNames, fileName, i)
+		part, err := getPartInfo(currentPage, totalPages, s.FileName, i)
 		if err != nil {
 			fmt.Println(err)
 			return err
 		}
 
-		currentPage = lastPage
+		newPart(part)
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
 
-		isLastPage, err := isLastPage(partsNames, totalPages)
+		currentPage = part.LastPage
+
+		isLastPage, err := isLastPage(part.Pages, totalPages)
 		if err != nil {
 			fmt.Println(err)
 			return err
@@ -71,7 +91,7 @@ func SplitPDF(fileName string) error {
 	return nil
 }
 
-func extractPartsNames(currentPage int, totalPages int, fileName string, partNumber int) ([]string, int, error) {
+func getPartInfo(currentPage int, totalPages int, fileName string, partNumber int) (*Part, error) {
 	inFiles := []string{}
 	completeFileName := "_"
 	totalSize := int64(0)
@@ -79,9 +99,10 @@ func extractPartsNames(currentPage int, totalPages int, fileName string, partNum
 		completeFileName = strings.Trim(fileName, fileExtension) + "" + "_" + strconv.Itoa(i) + fileExtension
 
 		fi, err := os.Stat(completeFileName)
+
 		if err != nil {
 			fmt.Println("Err", err)
-			return nil, 0, err
+			return nil, err
 		}
 		size := fi.Size()
 
@@ -93,15 +114,19 @@ func extractPartsNames(currentPage int, totalPages int, fileName string, partNum
 
 		inFiles = append(inFiles, completeFileName)
 	}
-	partNumber++
-
-	return inFiles, currentPage, nil
+	part := &Part{
+		PartNumber: partNumber,
+		LastPage:   currentPage,
+		Pages:      inFiles,
+		ParentName: fileName,
+	}
+	return part, nil
 }
 
-func mergePages(parts []string, fileName string, partNumber int) error {
-	fileName = strings.Trim(fileName, fileExtension)
-	fileName = fileName + "part" + strconv.Itoa(partNumber) + fileExtension
-	err := pdfcpu.MergeCreateFile(parts, fileName, nil)
+func newPart(part *Part) error {
+	fileName := strings.Trim(part.ParentName, fileExtension)
+	part.Name = fileName + "part" + strconv.Itoa(part.PartNumber) + fileExtension
+	err := pdfcpu.MergeCreateFile(part.Pages, part.Name, nil)
 	if err != nil {
 		return err
 	}

@@ -3,5 +3,6 @@ package main
 import "splliter/pdf"
 
 func main() {
-	pdf.SplitPDF("assimil.pdf")
+	split := &pdf.Split{FileName: "assimil.pdf"}
+	split.NewSplit()
 }
