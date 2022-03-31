@@ -1,6 +1,8 @@
 package main
 
-import "splliter/pdf"
+import (
+	"splliter/internal/pdf"
+)
 
 func main() {
 	split := &pdf.Split{FileName: "assimil.pdf"}
