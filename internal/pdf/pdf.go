@@ -10,7 +10,6 @@ import (
 	pdfcpu "github.com/pdfcpu/pdfcpu/pkg/api"
 )
 
-const dir = "tmp/"
 const maximumFileSize = 47185920
 const fileExtension = ".pdf"
 
@@ -33,7 +32,8 @@ type Part struct {
 }
 
 func (s *Split) NewSplit() error {
-	os.Chdir(dir)
+	tempDir := os.TempDir()
+	os.Chdir(tempDir)
 	file, err := os.Open(s.FileName)
 	defer file.Close()
 
